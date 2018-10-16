@@ -61,7 +61,7 @@ type XMLConfig struct {
 	ReadAgentStatusFromConfigInterval ValueAttr
 	AgentStatus                       ValueAttr
 	Interval                          ValueAttr
-	Port                          ValueAttr
+	Port                          	  ValueAttr
 }
 
 func readConfig() {

@@ -18,5 +18,5 @@
   <ReadAgentStatusFromConfigInterval value="5" />
   <AgentStatus value="Normal" />
   <Interval value="10" />
-  <port value="3333" />
+  <Port value="3333" />
 </xml>
