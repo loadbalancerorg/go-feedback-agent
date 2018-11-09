@@ -27,7 +27,6 @@ func runcmd(command string) (res string) {
 }
 
 func run(timeout int, command string, args ...string) (res string, err error) {
-
 	// instantiate new command
 	cmd := exec.Command(command, args...)
 
