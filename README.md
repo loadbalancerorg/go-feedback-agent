@@ -29,3 +29,7 @@ go build
 ```
 ## Support
 If you require assistence with our feedback agent please contact us at support@loadbalancer.org
+
+## License
+GNU General Public License, version 2
+
