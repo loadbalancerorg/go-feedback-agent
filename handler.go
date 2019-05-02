@@ -113,7 +113,7 @@ func GetResponseForMode() (response []byte) {
 func GetSessionUtilized(IPAddress, servicePort string, maxNumberOfSessionsPerService int) (result float64) {
 	numberOfEstablishedConnections := getNumberOfLocalEstablishedConnections(IPAddress, servicePort)
 	if numberOfEstablishedConnections > 0 && maxNumberOfSessionsPerService > 0 {
-		result = float64(maxNumberOfSessionsPerService) / float64(numberOfEstablishedConnections)
+		result = float64(numberOfEstablishedConnections) / float64(maxNumberOfSessionsPerService) * 100
 	}
 	return
 }
