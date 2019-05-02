@@ -75,9 +75,7 @@ func GetResponseForMode() (response []byte) {
                 sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
 
                 utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
-                if tcpService.ImportanceFactor.ToFloat() > 0 {
-                    divider++
-                }
+                divider++
 
                 if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
                     response = []byte("0%\n")
