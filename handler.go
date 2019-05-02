@@ -38,16 +38,22 @@ func GetResponseForMode() (response []byte) {
 
 	switch GlobalConfig.AgentStatus.Value {
 	case Normal:
-		cpuLoad, err := cpu.Percent(0, false)
-		if err != nil {
-			return []byte("0%\n")
-		}
-		v, err := mem.VirtualMemory()
-		if err != nil {
-			return []byte("0%\n")
-		}
-		averageCpuLoad := cpuLoad[0]
-		usedRam := v.UsedPercent
+        averageCpuLoad := 0.0
+        if cpuImportance > 0 {
+            cpuLoad, err := cpu.Percent(0, false)
+            if err != nil {
+                return []byte("0%\n")
+            }
+            averageCpuLoad = cpuLoad[0]
+        }
+        usedRam := 0.0
+        if ramImportance > 0 {
+            v, err := mem.VirtualMemory()
+            if err != nil {
+                return []byte("0%\n")
+            }
+            usedRam = v.UsedPercent
+        }
 		// If any resource is important and utilized 100% then everything else is not important
 		if averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0 || (usedRam > ramThresholdValue && ramThresholdValue > 0) {
 			response = []byte("0%\n")
@@ -65,17 +71,19 @@ func GetResponseForMode() (response []byte) {
 		}
 
 		for _, tcpService := range GlobalConfig.TCPService {
-			sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
+            if tcpService.ImportanceFactor.ToFloat() > 0 {
+                sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
 
-			utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
-			if tcpService.ImportanceFactor.ToFloat() > 0 {
-				divider++
-			}
+                utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
+                if tcpService.ImportanceFactor.ToFloat() > 0 {
+                    divider++
+                }
 
-			if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
-				response = []byte("0%\n")
-				break
-			}
+                if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
+                    response = []byte("0%\n")
+                    break
+                }
+            }
 		}
 
 		utilization = utilization / divider
