@@ -10,6 +10,7 @@ import (
     "strings"
 )
 
+var currentAgentStatus string = ""
 var GlobalConfig *XMLConfig
 
 type ValueAttr struct {
@@ -65,6 +66,17 @@ type XMLConfig struct {
 	Port                          	  ValueAttr
 }
 
+type ticker struct {
+    period time.Duration
+    ticker time.Ticker
+}
+func createTicker(period time.Duration) *ticker {
+    return &ticker{period, *time.NewTicker(period)}
+}
+func (t *ticker) resetTicker() {
+    t.ticker = *time.NewTicker(t.period)
+}
+
 func readConfig() {
 	xmlFile, err := os.Open("C:/ProgramData/LoadBalancer.org/LoadBalancer/config.xml")
 	if err != nil {
@@ -80,12 +92,6 @@ func readConfig() {
 	if err != nil {
 		panic(err)
 	}
-    if strings.ToLower(GlobalConfig.ReadAgentStatusFromConfig.Value) == "true" {
-		go func() {
-			time.Sleep(time.Second * time.Duration(GlobalConfig.ReadAgentStatusFromConfigInterval.ToInt()))
-			readConfig()
-		}()
-	}
 }
 
 func InitConfig() {
@@ -94,9 +100,42 @@ func InitConfig() {
 	    log.Fatalf("error opening file: %v", err)
 	}
 	log.SetOutput(f)
-	readConfig()
-	go func() {
-		time.Sleep(time.Second * time.Duration(GlobalConfig.Interval.ToInt()))
-		initialRun = false
-	}()
+    readConfig()
+    
+    intervalTicker := time.NewTicker(time.Second * time.Duration(GlobalConfig.Interval.ToInt()))
+    go func() {
+        for {
+            select {
+            case <-intervalTicker.C:
+                initialRun = false
+            }
+        }
+    }()
+    
+    if strings.ToLower(GlobalConfig.ReadAgentStatusFromConfig.Value) == "true" {
+        statusTicker := time.NewTicker(time.Second * time.Duration(GlobalConfig.ReadAgentStatusFromConfigInterval.ToInt()))
+        go func() {
+            for {
+                select {
+                case <-statusTicker.C:
+                    readConfig()
+                    // If status changed, send 'up ready' for a full interval 
+                    if currentAgentStatus != GlobalConfig.AgentStatus.Value {
+                        initialRun = true
+                        intervalTicker.Stop()
+                        intervalTicker = time.NewTicker(time.Second * time.Duration(GlobalConfig.Interval.ToInt()))
+                        go func() {
+                            for {
+                                select {
+                                case <-intervalTicker.C:
+                                    initialRun = false
+                                }
+                            }
+                        }()
+                    }
+                    currentAgentStatus = GlobalConfig.AgentStatus.Value
+                }
+            }
+        }()
+	}
 }
