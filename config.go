@@ -7,6 +7,7 @@ import (
 	"os"
 	"strconv"
 	"time"
+    "strings"
 )
 
 var GlobalConfig *XMLConfig
@@ -79,7 +80,7 @@ func readConfig() {
 	if err != nil {
 		panic(err)
 	}
-	if GlobalConfig.ReadAgentStatusFromConfig.Value == "true" {
+    if strings.ToLower(GlobalConfig.ReadAgentStatusFromConfig.Value) == "true" {
 		go func() {
 			time.Sleep(time.Second * time.Duration(GlobalConfig.ReadAgentStatusFromConfigInterval.ToInt()))
 			readConfig()
