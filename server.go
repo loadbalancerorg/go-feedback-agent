@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net"
+    "strconv"
 )
 
 type Server struct {
@@ -10,7 +11,11 @@ type Server struct {
 }
 
 func InitServer() *Server {
-	srv := &Server{}
+	srv := &Server{} 
+    // If Port is not specified, use 3333 by default
+    if _, err := strconv.Atoi(GlobalConfig.Port.ToString()); err != nil {
+        GlobalConfig.Port.Value = "3333"
+    }
 	listner, err := net.Listen("tcp", ":" + GlobalConfig.Port.ToString())
 	if err != nil {
 		log.Fatal(err)
