@@ -104,7 +104,9 @@ func GetResponseForMode() (response []byte) {
 		response = []byte("drain\n")
 	case Down:
 		response = []byte("down\n")
-	default:
+	case Halt:
+		response = []byte("down\n")
+    default:
 		response = []byte("error\n")
 	}
 	return
