@@ -38,16 +38,22 @@ func GetResponseForMode() (response []byte) {
 
 	switch GlobalConfig.AgentStatus.Value {
 	case Normal:
-		cpuLoad, err := cpu.Percent(0, false)
-		if err != nil {
-			return []byte("0%\n")
-		}
-		v, err := mem.VirtualMemory()
-		if err != nil {
-			return []byte("0%\n")
-		}
-		averageCpuLoad := cpuLoad[0]
-		usedRam := v.UsedPercent
+        averageCpuLoad := 0.0
+        if cpuImportance > 0 {
+            cpuLoad, err := cpu.Percent(0, false)
+            if err != nil {
+                return []byte("0%\n")
+            }
+            averageCpuLoad = cpuLoad[0]
+        }
+        usedRam := 0.0
+        if ramImportance > 0 {
+            v, err := mem.VirtualMemory()
+            if err != nil {
+                return []byte("0%\n")
+            }
+            usedRam = v.UsedPercent
+        }
 		// If any resource is important and utilized 100% then everything else is not important
 		if averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0 || (usedRam > ramThresholdValue && ramThresholdValue > 0) {
 			response = []byte("0%\n")
@@ -65,17 +71,17 @@ func GetResponseForMode() (response []byte) {
 		}
 
 		for _, tcpService := range GlobalConfig.TCPService {
-			sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
+            if tcpService.ImportanceFactor.ToFloat() > 0 {
+                sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
 
-			utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
-			if tcpService.ImportanceFactor.ToFloat() > 0 {
-				divider++
-			}
+                utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
+                divider++
 
-			if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
-				response = []byte("0%\n")
-				break
-			}
+                if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
+                    response = []byte("0%\n")
+                    break
+                }
+            }
 		}
 
 		utilization = utilization / divider
@@ -98,7 +104,9 @@ func GetResponseForMode() (response []byte) {
 		response = []byte("drain\n")
 	case Down:
 		response = []byte("down\n")
-	default:
+	case Halt:
+		response = []byte("down\n")
+    default:
 		response = []byte("error\n")
 	}
 	return
@@ -107,7 +115,7 @@ func GetResponseForMode() (response []byte) {
 func GetSessionUtilized(IPAddress, servicePort string, maxNumberOfSessionsPerService int) (result float64) {
 	numberOfEstablishedConnections := getNumberOfLocalEstablishedConnections(IPAddress, servicePort)
 	if numberOfEstablishedConnections > 0 && maxNumberOfSessionsPerService > 0 {
-		result = float64(maxNumberOfSessionsPerService) / float64(numberOfEstablishedConnections)
+		result = float64(numberOfEstablishedConnections) / float64(maxNumberOfSessionsPerService) * 100
 	}
 	return
 }
