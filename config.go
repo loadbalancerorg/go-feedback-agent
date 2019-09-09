@@ -7,7 +7,8 @@ import (
 	"os"
 	"strconv"
 	"time"
-    "strings"
+	"strings"
+	"path/filepath"
 )
 
 var currentAgentStatus string = ""
@@ -78,7 +79,7 @@ func (t *ticker) resetTicker() {
 }
 
 func readConfig() {
-	xmlFile, err := os.Open("C:/ProgramData/LoadBalancer.org/LoadBalancer/config.xml")
+	xmlFile, err := os.Open(filepath.Join(basePath, "config.xml"))
 	if err != nil {
 		panic(err)
 	}
@@ -95,7 +96,7 @@ func readConfig() {
 }
 
 func InitConfig() {
-	f, err := os.OpenFile("C:/ProgramData/LoadBalancer.org/LoadBalancer/lbfbalogfile", os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
+	f, err := os.OpenFile(filepath.Join(basePath, "lbfbalogfile"), os.O_RDWR | os.O_CREATE | os.O_APPEND, 0666)
 	if err != nil {
 	    log.Fatalf("error opening file: %v", err)
 	}
