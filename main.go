@@ -3,9 +3,15 @@ package main
 import (
 	"github.com/kardianos/service"
 	"log"
+	"os"
+	"flag"
+	"path/filepath"
 )
 
-var logger service.Logger
+var (
+	logger service.Logger
+	basePath = flag.String("basepath", filepath.Join(os.Getenv("ProgramData"), "LoadBalancer.org", "LoadBalancer"), "Base path for service data")
+)
 
 type program struct{}
 
