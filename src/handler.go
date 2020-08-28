@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/mem"
 	"math"
 	"net"
-	"strings"
+	"strconv"
+
+	"github.com/cakturk/go-netstat/netstat"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 )
 
 const (
@@ -27,7 +29,6 @@ const (
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 	conn.Write(GetResponseForMode())
-	conn.Close()
 }
 
 func GetResponseForMode() (response []byte) {
@@ -38,28 +39,34 @@ func GetResponseForMode() (response []byte) {
 
 	switch GlobalConfig.AgentStatus.Value {
 	case Normal:
-        averageCpuLoad := 0.0
-        if cpuImportance > 0 {
-            cpuLoad, err := cpu.Percent(0, false)
-            if err != nil {
-                return []byte("0%\n")
-            }
-            averageCpuLoad = cpuLoad[0]
-        }
-        usedRam := 0.0
-        if ramImportance > 0 {
-            v, err := mem.VirtualMemory()
-            if err != nil {
-                return []byte("0%\n")
-            }
-            usedRam = v.UsedPercent
-        }
-		// If any resource is important and utilized 100% then everything else is not important
-		if averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0 || (usedRam > ramThresholdValue && ramThresholdValue > 0) {
-			response = []byte("0%\n")
-		}
+		usedRam := 0.0
+		averageCpuLoad := 0.0
 		utilization := 0.0
 		divider := 0.0
+
+		// Calculate CPU
+		if cpuImportance > 0 {
+			cpuLoad, err := cpu.Percent(0, false)
+			if err != nil {
+				return []byte("0%\n")
+			}
+			averageCpuLoad = cpuLoad[0]
+		}
+
+		// Calculate RAM
+		if ramImportance > 0 {
+			v, err := mem.VirtualMemory()
+			if err != nil {
+				return []byte("0%\n")
+			}
+			usedRam = v.UsedPercent
+		}
+
+		// If any resource is important and utilized 100% then everything else is not important
+		if averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0 || (usedRam > ramThresholdValue && ramThresholdValue > 0) {
+			return []byte("0%\n")
+		}
+
 		utilization = utilization + averageCpuLoad*cpuImportance
 		if cpuImportance > 0 {
 			divider++
@@ -71,32 +78,41 @@ func GetResponseForMode() (response []byte) {
 		}
 
 		for _, tcpService := range GlobalConfig.TCPService {
-            if tcpService.ImportanceFactor.ToFloat() > 0 {
-                sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
+			// Make sure our importance factor is greater than 0 otherwise ignore
+			if tcpService.ImportanceFactor.ToFloat() > 0 {
+				// Get session occupied
+				sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
 
-                utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
-                divider++
+				// Calculate utilization
+				utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
 
-                if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
-                    response = []byte("0%\n")
-                    break
-                }
-            }
+				// increase our divider
+				divider++
+
+				if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
+					return []byte("0%\n")
+				}
+			}
 		}
 
 		utilization = utilization / divider
 
+		// Account for utilization less than 0
 		if utilization < 0 {
 			utilization = 0
 		}
+
+		// Account for utilization more than 0
 		if utilization > 100 {
 			utilization = 100
 		}
+
 		if returnIdle {
 			response = []byte(fmt.Sprintf("%v%%\n", math.Ceil(100-utilization)))
 		} else {
 			response = []byte(fmt.Sprintf("%v%%\n", math.Ceil(utilization)))
 		}
+
 		if initialRun {
 			response = append([]byte("up ready "), response...)
 		}
@@ -106,9 +122,10 @@ func GetResponseForMode() (response []byte) {
 		response = []byte("down\n")
 	case Halt:
 		response = []byte("down\n")
-    default:
+	default:
 		response = []byte("error\n")
 	}
+
 	return
 }
 
@@ -121,13 +138,22 @@ func GetSessionUtilized(IPAddress, servicePort string, maxNumberOfSessionsPerSer
 }
 
 func getNumberOfLocalEstablishedConnections(ipAddress string, port string) int {
-	if ipAddress == "*" {
-		ipAddress = ""
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return 0
 	}
-	result := runcmd("netstat -nt | findstr " + ipAddress + ":" + port + "  | findstr ESTABLISHED ")
-	count := len(strings.Split(result, "\n"))
-	if count == 0 {
-		return count
+
+	// get slice of sockets based on match function
+	tabs, err := netstat.TCPSocks(func(s *netstat.SockTabEntry) bool {
+		if ipAddress == "*" {
+			return s.State == netstat.Established && s.LocalAddr.Port == uint16(p)
+		}
+
+		return s.State == netstat.Established && s.LocalAddr.IP.String() == ipAddress && s.LocalAddr.Port == uint16(p)
+	})
+	if err != nil {
+		return 0
 	}
-	return count - 1
+
+	return len(tabs)
 }
