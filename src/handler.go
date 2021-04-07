@@ -2,11 +2,13 @@ package main
 
 import (
 	"fmt"
-	"github.com/shirou/gopsutil/cpu"
-	"github.com/shirou/gopsutil/mem"
 	"math"
 	"net"
-	"strings"
+	"strconv"
+
+	"github.com/cakturk/go-netstat/netstat"
+	"github.com/shirou/gopsutil/cpu"
+	"github.com/shirou/gopsutil/mem"
 )
 
 const (
@@ -27,7 +29,6 @@ const (
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 	conn.Write(GetResponseForMode())
-	conn.Close()
 }
 
 func GetResponseForMode() (response []byte) {
@@ -63,8 +64,7 @@ func GetResponseForMode() (response []byte) {
 
 		// If any resource is important and utilized 100% then everything else is not important
 		if averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0 || (usedRam > ramThresholdValue && ramThresholdValue > 0) {
-			response = []byte("0%\n")
-			return
+			return []byte("0%\n")
 		}
 
 		utilization = utilization + averageCpuLoad*cpuImportance
@@ -84,14 +84,13 @@ func GetResponseForMode() (response []byte) {
 				sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
 
 				// Calculate utilization
-				utilization = utilization + sessionOccupied * tcpService.ImportanceFactor.ToFloat()
+				utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
 
 				// increase our divider
 				divider++
 
 				if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
-					response = []byte("0%\n")
-					return
+					return []byte("0%\n")
 				}
 			}
 		}
@@ -126,6 +125,7 @@ func GetResponseForMode() (response []byte) {
 	default:
 		response = []byte("error\n")
 	}
+
 	return
 }
 
@@ -138,13 +138,22 @@ func GetSessionUtilized(IPAddress, servicePort string, maxNumberOfSessionsPerSer
 }
 
 func getNumberOfLocalEstablishedConnections(ipAddress string, port string) int {
-	if ipAddress == "*" {
-		ipAddress = ""
+	p, err := strconv.Atoi(port)
+	if err != nil {
+		return 0
 	}
-	result := runcmd("netstat -nt | findstr " + ipAddress + ":" + port + "  | findstr ESTABLISHED ")
-	count := len(strings.Split(result, "\n"))
-	if count == 0 {
-		return count
+
+	// get slice of sockets based on match function
+	tabs, err := netstat.TCPSocks(func(s *netstat.SockTabEntry) bool {
+		if ipAddress == "*" {
+			return s.State == netstat.Established && s.LocalAddr.Port == uint16(p)
+		}
+
+		return s.State == netstat.Established && s.LocalAddr.IP.String() == ipAddress && s.LocalAddr.Port == uint16(p)
+	})
+	if err != nil {
+		return 0
 	}
-	return count - 1
+
+	return len(tabs)
 }
