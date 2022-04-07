@@ -27,8 +27,36 @@ go get -d
 ```
 go build
 ```
+## XML
+
+```
+<xml>
+  <Cpu>
+    <ImportanceFactor value="1" />
+    <ThresholdValue value="100" />
+  </Cpu>
+  <Ram>
+    <ImportanceFactor value="0" />
+    <ThresholdValue value="100" />
+  </Ram>
+  <TCPService>
+    <Name value="HTTP" />
+    <IPAddress value="*" />
+    <Port value="80" />
+    <MaxConnections value="0" />
+    <ImportanceFactor value="0" />
+  </TCPService>
+  <ReadAgentStatusFromConfig value="False" />
+  <ReadAgentStatusFromConfigInterval value="5" />
+  <AgentStatus value="Normal" />
+  <Interval value="10" />
+  <Port value="3333" />
+  <ReturnIdle value="true" />
+</xml>
+```
+
 ## Support
-If you require assistence with our feedback agent please contact us at support@loadbalancer.org
+If you require assistance with our feedback agent please contact us at support@loadbalancer.org
 
 ## License
 GNU General Public License, version 2
