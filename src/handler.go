@@ -20,102 +20,26 @@ var (
 	initialRun = true
 )
 
-const (
-	returnIdle = true
-)
-
 func handleClient(conn net.Conn) {
 	defer conn.Close()
 	conn.Write(GetResponseForMode())
 	conn.Close()
 }
 
-func GetResponseForMode() (response []byte) {
-	ramThresholdValue := GlobalConfig.Ram.ThresholdValue.ToFloat()
-	cpuThresholdValue := GlobalConfig.Cpu.ThresholdValue.ToFloat()
-	cpuImportance := GlobalConfig.Cpu.ImportanceFactor.ToFloat()
-	ramImportance := GlobalConfig.Ram.ImportanceFactor.ToFloat()
+func GetResponseForMode() []byte {
 
+	response := []byte("")
 	switch GlobalConfig.AgentStatus.Value {
 	case Normal:
-		usedRam := 0.0
-		averageCpuLoad := 0.0
-		utilization := 0.0
-		divider := 0.0
-
-		// Calculate CPU
-		if cpuImportance > 0 {
-			cpuLoad, err := cpu.Percent(0, false)
-			if err != nil {
-				return []byte("0%\n")
-			}
-			averageCpuLoad = cpuLoad[0]
-		}
-
-		// Calculate RAM
-		if ramImportance > 0 {
-			v, err := mem.VirtualMemory()
-			if err != nil {
-				return []byte("0%\n")
-			}
-			usedRam = v.UsedPercent
-		}
-
-		// If any resource is important and utilized 100% then everything else is not important
-		if averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0 || (usedRam > ramThresholdValue && ramThresholdValue > 0) {
-			response = []byte("0%\n")
-			return
-		}
-
-		utilization = utilization + averageCpuLoad*cpuImportance
-		if cpuImportance > 0 {
-			divider++
-		}
-
-		utilization = utilization + usedRam*ramImportance
-		if ramImportance > 0 {
-			divider++
-		}
-
-		for _, tcpService := range GlobalConfig.TCPService {
-			// Make sure our importance factor is greater than 0 otherwise ignore
-			if tcpService.ImportanceFactor.ToFloat() > 0 {
-				// Get session occupied
-				sessionOccupied := GetSessionUtilized(tcpService.IPAddress.Value, tcpService.Port.Value, tcpService.MaxConnections.ToInt())
-
-				// Calculate utilization
-				utilization = utilization + sessionOccupied * tcpService.ImportanceFactor.ToFloat()
-
-				// increase our divider
-				divider++
-
-				if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
-					response = []byte("0%\n")
-					return
-				}
-			}
-		}
-
-		utilization = utilization / divider
-
-		// Account for utilization less than 0
-		if utilization < 0 {
-			utilization = 0
-		}
-
-		// Account for utilization more than 0
-		if utilization > 100 {
-			utilization = 100
-		}
-
-		if returnIdle {
-			response = []byte(fmt.Sprintf("%v%%\n", math.Ceil(100-utilization)))
+		utilization, err := CalculateNormalState()
+		if err != nil {
+			response = []byte("error\n")
 		} else {
-			response = []byte(fmt.Sprintf("%v%%\n", math.Ceil(utilization)))
-		}
-
-		if initialRun {
-			response = append([]byte("up ready "), response...)
+			if GlobalConfig.ReturnIdle.Value == "true" || GlobalConfig.ReturnIdle.Value == "" {
+				response = []byte(fmt.Sprintf("%v%%\n", math.Ceil(100-utilization)))
+			} else {
+				response = []byte(fmt.Sprintf("%v%%\n", math.Ceil(utilization)))
+			}
 		}
 	case Drain:
 		response = []byte("drain\n")
@@ -126,15 +50,139 @@ func GetResponseForMode() (response []byte) {
 	default:
 		response = []byte("error\n")
 	}
-	return
+
+	if initialRun {
+		response = append([]byte("up ready "), response...)
+	}
+
+	return response
 }
 
-func GetSessionUtilized(IPAddress, servicePort string, maxNumberOfSessionsPerService int) (result float64) {
-	numberOfEstablishedConnections := getNumberOfLocalEstablishedConnections(IPAddress, servicePort)
-	if numberOfEstablishedConnections > 0 && maxNumberOfSessionsPerService > 0 {
-		result = float64(numberOfEstablishedConnections) / float64(maxNumberOfSessionsPerService) * 100
+func CalculateNormalState() (float64, error) {
+
+	cpuImportance := GlobalConfig.Cpu.ImportanceFactor.ToFloat()
+	ramImportance := GlobalConfig.Ram.ImportanceFactor.ToFloat()
+
+	averageCpuLoad, usedRam, err := SetImportanceValues(cpuImportance, ramImportance)
+	if err != nil {
+		return 0, err
 	}
-	return
+
+	ramThresholdValue := GlobalConfig.Ram.ThresholdValue.ToFloat()
+	cpuThresholdValue := GlobalConfig.Cpu.ThresholdValue.ToFloat()
+	// If any resource is important and utilized 100% then everything else is not important
+	if (averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0) ||
+		(usedRam > ramThresholdValue && ramThresholdValue > 0) {
+		return 0, nil
+	}
+
+	utilization, err := CalculateUtilization(averageCpuLoad, cpuImportance, usedRam, ramImportance)
+	if err != nil {
+		return 0, err
+	}
+
+	return utilization, nil
+}
+
+func CalculateUtilization(averageCpuLoad float64, cpuImportance float64, usedRam float64, ramImportance float64) (float64, error) {
+	utilizationSystem := getSystemUtilization(averageCpuLoad, cpuImportance, usedRam, ramImportance)
+
+	utilizationServices := getServicesUtilization()
+	if utilizationServices == 100 {
+		return 100, nil
+	}
+
+	utilization := utilizationSystem + utilizationServices
+
+	// Account for utilization less than 0
+	if utilization < 0 {
+		utilization = 0
+	}
+
+	// Account for utilization more than 0
+	if utilization > 100 {
+		utilization = 100
+	}
+	return utilization, nil
+}
+
+func getSystemUtilization(averageCpuLoad float64, cpuImportance float64, usedRam float64, ramImportance float64) float64 {
+	divider := 0.0
+	utilizationSystem := 0.0
+	if cpuImportance > 0 {
+		utilizationSystem = utilizationSystem + (averageCpuLoad * cpuImportance)
+		divider++
+	}
+	if cpuImportance == 1 && averageCpuLoad > 99 {
+		return 100
+	}
+
+	if ramImportance > 0 {
+		utilizationSystem = utilizationSystem + (usedRam * ramImportance)
+		divider++
+	}
+	if ramImportance == 1 && usedRam > 99 {
+		return 100
+	}
+
+	if divider > 0 {
+		utilizationSystem = utilizationSystem / divider
+	}
+	return utilizationSystem
+}
+
+func getServicesUtilization() float64 {
+	utilization := 0.0
+	divider := 0.0
+	for _, tcpService := range GlobalConfig.TCPService {
+		if tcpService.ImportanceFactor.ToFloat() == 0 {
+			continue
+		}
+		sessionOccupied := 100.0
+		if tcpService.MaxConnections.ToInt() > 0 {
+			// Get session occupied
+			numberOfEstablishedConnections := getNumberOfLocalEstablishedConnections(tcpService.IPAddress.Value, tcpService.Port.Value)
+			sessionOccupied = float64(numberOfEstablishedConnections) / float64(tcpService.MaxConnections.ToInt()) * 100
+		}
+
+		if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
+			return 100
+		}
+
+		// Calculate utilization
+		utilization = utilization + sessionOccupied*tcpService.ImportanceFactor.ToFloat()
+
+		// increase our divider
+		divider++
+
+	}
+	if divider > 0 {
+		utilization = utilization / divider
+	}
+	return utilization
+}
+
+func SetImportanceValues(cpuImportance float64, ramImportance float64) (float64, float64, error) {
+	// Calculate CPU
+	averageCpuLoad := 0.0
+	if cpuImportance > 0 {
+		cpuLoad, err := cpu.Percent(0, false)
+		if err != nil {
+			return 0, 0, err
+		}
+		averageCpuLoad = cpuLoad[0]
+	}
+
+	// Calculate RAM
+	usedRam := 0.0
+	if ramImportance > 0 {
+		v, err := mem.VirtualMemory()
+		if err != nil {
+			return 0, 0, err
+		}
+		usedRam = v.UsedPercent
+	}
+	return averageCpuLoad, usedRam, nil
 }
 
 func getNumberOfLocalEstablishedConnections(ipAddress string, port string) int {
