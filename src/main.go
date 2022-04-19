@@ -2,10 +2,12 @@ package main
 
 import (
 	"github.com/kardianos/service"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
 var logger service.Logger
+
+var eventLog Logging
 
 type program struct{}
 

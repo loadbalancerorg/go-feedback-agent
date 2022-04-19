@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"errors"
-	"log"
+	log "github.com/sirupsen/logrus"
 	"os/exec"
 	"runtime"
 	"time"
