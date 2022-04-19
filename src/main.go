@@ -15,6 +15,7 @@ func (p *program) Start(s service.Service) error {
 	go p.run()
 	return nil
 }
+
 func (p *program) run() {
 	// Do work here
 	InitConfig()
@@ -23,7 +24,7 @@ func (p *program) run() {
 	for {
 		conn, err := srv.server.Accept()
 		if err != nil {
-			log.Println(err)
+			eventLog.ErrorErr(err)
 		}
 		go handleClient(conn)
 	}
@@ -50,6 +51,6 @@ func main() {
 	}
 	err = s.Run()
 	if err != nil {
-		logger.Error(err)
+		eventLog.ErrorErr(err)
 	}
 }

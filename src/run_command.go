@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"errors"
-	log "github.com/sirupsen/logrus"
 	"os/exec"
 	"runtime"
 	"time"
@@ -20,7 +19,7 @@ func runcmd(command string) (res string) {
 	}
 	res, err := run(10, shell, flag, command)
 	if err != nil {
-		log.Println(err)
+		eventLog.ErrorErr(err)
 		return
 	}
 	return
@@ -67,5 +66,4 @@ func run(timeout int, command string, args ...string) (res string, err error) {
 		}
 		return buf.String(), nil
 	}
-	return "", nil
 }

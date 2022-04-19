@@ -16,17 +16,22 @@ func (l *Logging) Debug(message string) {
 	}
 }
 
-// Warn Send a warning message to the cluster
+// Warn Logs a warning message
 func (l *Logging) Warn(message string) {
 	l.Logger.Warnf("%s", message)
 }
 
-// Info Send an info message to the cluster
+// Info Logs an info message
 func (l *Logging) Info(message string) {
 	l.Logger.Infof("%s", message)
 }
 
-// Info Send an error message to the cluster
+// Error Logs an error message
 func (l *Logging) Error(message string) {
 	l.Logger.Errorf("%s", message)
+}
+
+// ErrorErr Logs an error message
+func (l *Logging) ErrorErr(err error) {
+	l.Logger.Println(err)
 }
