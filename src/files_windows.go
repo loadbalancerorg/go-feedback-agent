@@ -11,19 +11,10 @@ import (
 
 const CONFIG_FILE = "C:/ProgramData/LoadBalancer.org/LoadBalancer/config.xml"
 
-func setupLogging() {
-	newLogger, err := NewLogger()
-	if err != nil {
-		panic("unable to create logger")
-	}
-	eventLog = newLogger
-}
-
 // NewLogger Returns a new distributes logging object
 func NewLogger() (Logging, error) {
 	logging := Logging{
 		log.New(),
-		LogsINFO,
 	}
 	// Setup event log
 	eventLog, err := eventlog.Open("Feedback Agent")
@@ -34,6 +25,9 @@ func NewLogger() (Logging, error) {
 	hook := eventloghook.NewHook(eventLog)
 	// Attach our event log hook
 	logging.Logger.Hooks.Add(hook)
+
+	logging.Logger.SetOutput(ioutil.Discard)
+
 	// Return with our logger
 	return logging, nil
 }

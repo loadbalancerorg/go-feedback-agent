@@ -6,23 +6,15 @@ package main
 import (
 	log "github.com/sirupsen/logrus"
 	"github.com/ssgreg/journalhook"
+	"io/ioutil"
 )
 
 const CONFIG_FILE = "/usr/local/etc/lbfbaconfig.xml"
-
-func setupLogging() {
-	newLogger, err := NewLogger()
-	if err != nil {
-		panic("unable to create logger")
-	}
-	eventLog = newLogger
-}
 
 // NewLogger Returns a new distributes logging object
 func NewLogger() (Logging, error) {
 	logging := Logging{
 		log.New(),
-		LogsINFO,
 	}
 	// Setup journal
 	hook, err := journalhook.NewJournalHook()
@@ -31,6 +23,9 @@ func NewLogger() (Logging, error) {
 	}
 	// Attach our journal hook
 	logging.Logger.Hooks.Add(hook)
+
+	logging.Logger.SetOutput(ioutil.Discard)
+
 	// Return with our logger
 	return logging, nil
 }

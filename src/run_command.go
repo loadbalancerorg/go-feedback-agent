@@ -19,7 +19,7 @@ func runcmd(command string) (res string) {
 	}
 	res, err := run(10, shell, flag, command)
 	if err != nil {
-		eventLog.ErrorErr(err)
+		eventLog.Logger.Error(err)
 		return
 	}
 	return

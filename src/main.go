@@ -5,8 +5,6 @@ import (
 	log "github.com/sirupsen/logrus"
 )
 
-var logger service.Logger
-
 var eventLog Logging
 
 type program struct{}
@@ -24,7 +22,7 @@ func (p *program) run() {
 	for {
 		conn, err := srv.server.Accept()
 		if err != nil {
-			eventLog.ErrorErr(err)
+			eventLog.Logger.Error(err)
 		}
 		go handleClient(conn)
 	}
@@ -45,12 +43,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	logger, err = s.Logger(nil)
-	if err != nil {
-		log.Fatal(err)
-	}
 	err = s.Run()
 	if err != nil {
-		eventLog.ErrorErr(err)
+		eventLog.Logger.Error(err)
 	}
 }

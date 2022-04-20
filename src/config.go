@@ -12,15 +12,6 @@ import (
 var currentAgentStatus string = ""
 var GlobalConfig *XMLConfig
 
-type LogsLevel int32
-
-const (
-	LogsINFO    LogsLevel = 0
-	LogsWARNING LogsLevel = 1
-	LogsERROR   LogsLevel = 2
-	LogsDEBUG   LogsLevel = 3
-)
-
 type ValueAttr struct {
 	Value string `xml:"value,attr"`
 }
@@ -77,7 +68,7 @@ type XMLConfig struct {
 }
 
 func readConfig() {
-	eventLog.Info("Feedback Agent: Reading Config")
+	eventLog.Logger.Infoln("Feedback Agent: Reading Config")
 	xmlFile, err := os.Open(CONFIG_FILE)
 	if err != nil {
 		panic(err)
@@ -98,6 +89,8 @@ func InitConfig() {
 	setupLogging()
 
 	readConfig()
+
+	eventLog.SetLogLevel(GlobalConfig.LogLevel.ToString())
 
 	intervalTicker := time.NewTicker(time.Second * time.Duration(GlobalConfig.Interval.ToInt()))
 	go func() {
