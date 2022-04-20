@@ -52,6 +52,7 @@ go build
   <Interval value="10" />
   <Port value="3333" />
   <ReturnIdle value="true" />
+  <LogLevel value="INFO" />
 </xml>
 ```
 
