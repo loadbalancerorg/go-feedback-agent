@@ -31,3 +31,7 @@ func NewLogger() (Logging, error) {
 	// Return with our logger
 	return logging, nil
 }
+
+func localCMD() (string, string) {
+	return "cmd", "/c"
+}

@@ -4,19 +4,11 @@ import (
 	"bytes"
 	"errors"
 	"os/exec"
-	"runtime"
 	"time"
 )
 
 func runcmd(command string) (res string) {
-	var shell, flag string
-	if runtime.GOOS == "windows" {
-		shell = "cmd"
-		flag = "/c"
-	} else {
-		shell = "/bin/sh"
-		flag = "-c"
-	}
+	shell, flag := localCMD()
 	res, err := run(10, shell, flag, command)
 	if err != nil {
 		eventLog.Logger.Error(err)
