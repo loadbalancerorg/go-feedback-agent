@@ -7,6 +7,7 @@ import (
 	"github.com/Freman/eventloghook"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows/svc/eventlog"
+	"io"
 )
 
 const CONFIG_FILE = "C:/ProgramData/LoadBalancer.org/LoadBalancer/config.xml"
@@ -26,7 +27,7 @@ func NewLogger() (Logging, error) {
 	// Attach our event log hook
 	logging.Logger.Hooks.Add(hook)
 
-	logging.Logger.SetOutput(ioutil.Discard)
+	logging.Logger.SetOutput(io.Discard)
 
 	// Return with our logger
 	return logging, nil
