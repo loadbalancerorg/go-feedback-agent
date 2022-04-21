@@ -3,24 +3,15 @@ package main
 import (
 	"bytes"
 	"errors"
-	"log"
 	"os/exec"
-	"runtime"
 	"time"
 )
 
 func runcmd(command string) (res string) {
-	var shell, flag string
-	if runtime.GOOS == "windows" {
-		shell = "cmd"
-		flag = "/c"
-	} else {
-		shell = "/bin/sh"
-		flag = "-c"
-	}
+	shell, flag := localCMD()
 	res, err := run(10, shell, flag, command)
 	if err != nil {
-		log.Println(err)
+		eventLog.Logger.Error(err)
 		return
 	}
 	return
@@ -67,5 +58,4 @@ func run(timeout int, command string, args ...string) (res string, err error) {
 		}
 		return buf.String(), nil
 	}
-	return "", nil
 }

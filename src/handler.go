@@ -21,9 +21,14 @@ var (
 )
 
 func handleClient(conn net.Conn) {
-	defer conn.Close()
-	conn.Write(GetResponseForMode())
-	conn.Close()
+	_, err := conn.Write(GetResponseForMode())
+	if err != nil {
+		eventLog.Logger.Errorf("Feedback Agent: Failed to write response")
+	}
+	err = conn.Close()
+	if err != nil {
+		eventLog.Logger.Errorf("Feedback Agent: Failed to close connection")
+	}
 }
 
 func GetResponseForMode() []byte {
@@ -31,6 +36,7 @@ func GetResponseForMode() []byte {
 	response := []byte("")
 	switch GlobalConfig.AgentStatus.Value {
 	case Normal:
+		eventLog.Logger.Debugf("Feedback Agent: Normal mode")
 		utilization, err := CalculateNormalState()
 		if err != nil {
 			response = []byte("error\n")
@@ -42,12 +48,16 @@ func GetResponseForMode() []byte {
 			}
 		}
 	case Drain:
+		eventLog.Logger.Debugf("Feedback Agent: Normal drain")
 		response = []byte("drain\n")
 	case Down:
+		eventLog.Logger.Debugf("Feedback Agent: Normal down")
 		response = []byte("down\n")
 	case Halt:
+		eventLog.Logger.Debugf("Feedback Agent: Normal halt")
 		response = []byte("down\n")
 	default:
+		eventLog.Logger.Debugf("Feedback Agent: Normal error")
 		response = []byte("error\n")
 	}
 
@@ -60,24 +70,31 @@ func GetResponseForMode() []byte {
 
 func CalculateNormalState() (float64, error) {
 
+	eventLog.Logger.Debugf("Feedback Agent: CalculateNormalState")
 	cpuImportance := GlobalConfig.Cpu.ImportanceFactor.ToFloat()
 	ramImportance := GlobalConfig.Ram.ImportanceFactor.ToFloat()
 
 	averageCpuLoad, usedRam, err := SetImportanceValues(cpuImportance, ramImportance)
 	if err != nil {
+		eventLog.Logger.Debugf("Feedback Agent: Error get Importance Values")
 		return 0, err
 	}
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(CalculateNormalState): averageCpuLoad = %f, usedRam = %f", averageCpuLoad, usedRam))
 
 	ramThresholdValue := GlobalConfig.Ram.ThresholdValue.ToFloat()
 	cpuThresholdValue := GlobalConfig.Cpu.ThresholdValue.ToFloat()
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(CalculateNormalState): ramThresholdValue = %f, cpuThresholdValue = %f", ramThresholdValue, cpuThresholdValue))
+
 	// If any resource is important and utilized 100% then everything else is not important
 	if (averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0) ||
 		(usedRam > ramThresholdValue && ramThresholdValue > 0) {
+		eventLog.Logger.Debugf("Feedback Agent: important override")
 		return 0, nil
 	}
 
 	utilization, err := CalculateUtilization(averageCpuLoad, cpuImportance, usedRam, ramImportance)
 	if err != nil {
+		eventLog.Logger.Debugf("Feedback Agent: Error Calculate Utilization")
 		return 0, err
 	}
 
@@ -86,13 +103,17 @@ func CalculateNormalState() (float64, error) {
 
 func CalculateUtilization(averageCpuLoad float64, cpuImportance float64, usedRam float64, ramImportance float64) (float64, error) {
 	utilizationSystem := getSystemUtilization(averageCpuLoad, cpuImportance, usedRam, ramImportance)
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(CalculateUtilization): utilizationSystem = %f", utilizationSystem))
 
 	utilizationServices := getServicesUtilization()
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(CalculateUtilization): utilizationServices = %f", utilizationServices))
 	if utilizationServices == 100 {
+		eventLog.Logger.Debugf("Feedback Agent(CalculateUtilization): utilizationServices == 100")
 		return 100, nil
 	}
 
 	utilization := utilizationSystem + utilizationServices
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(CalculateUtilization): utilization = %f", utilization))
 
 	// Account for utilization less than 0
 	if utilization < 0 {
@@ -114,6 +135,7 @@ func getSystemUtilization(averageCpuLoad float64, cpuImportance float64, usedRam
 		divider++
 	}
 	if cpuImportance == 1 && averageCpuLoad > 99 {
+		eventLog.Logger.Debugf("Feedback Agent(getSystemUtilization): cpuImportance == 1 && averageCpuLoad > 99")
 		return 100
 	}
 
@@ -122,8 +144,11 @@ func getSystemUtilization(averageCpuLoad float64, cpuImportance float64, usedRam
 		divider++
 	}
 	if ramImportance == 1 && usedRam > 99 {
+		eventLog.Logger.Debugf("Feedback Agent(getSystemUtilization): ramImportance == 1 && usedRam > 99")
 		return 100
 	}
+
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getSystemUtilization): utilizationSystem = %f, divider = %f", utilizationSystem, divider))
 
 	if divider > 0 {
 		utilizationSystem = utilizationSystem / divider
@@ -132,20 +157,29 @@ func getSystemUtilization(averageCpuLoad float64, cpuImportance float64, usedRam
 }
 
 func getServicesUtilization() float64 {
+	eventLog.Logger.Debugf("Feedback Agent(getServicesUtilization): Start Services calculation")
+
 	utilization := 0.0
 	divider := 0.0
 	for _, tcpService := range GlobalConfig.TCPService {
+		eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getSystemUtilization): TCPService = %s", tcpService.Name))
+
 		if tcpService.ImportanceFactor.ToFloat() == 0 {
+			eventLog.Logger.Debugf("Feedback Agent(getServicesUtilization): Service not important")
 			continue
 		}
 		sessionOccupied := 100.0
 		if tcpService.MaxConnections.ToInt() > 0 {
+			eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getSystemUtilization): MaxConnections = %d", tcpService.MaxConnections.ToInt()))
 			// Get session occupied
 			numberOfEstablishedConnections := getNumberOfLocalEstablishedConnections(tcpService.IPAddress.Value, tcpService.Port.Value)
+			eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getSystemUtilization): numberOfEstablishedConnections = %d", numberOfEstablishedConnections))
 			sessionOccupied = float64(numberOfEstablishedConnections) / float64(tcpService.MaxConnections.ToInt()) * 100
+			eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getSystemUtilization): sessionOccupied = %f", sessionOccupied))
 		}
 
 		if sessionOccupied > 99 && tcpService.ImportanceFactor.ToFloat() == 1 {
+			eventLog.Logger.Debugf("Feedback Agent(getServicesUtilization): sessionOccupied > 99 && tcpService.ImportanceFactor = 1")
 			return 100
 		}
 
@@ -156,9 +190,14 @@ func getServicesUtilization() float64 {
 		divider++
 
 	}
+
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getSystemUtilization): utilization = %f, divider = %f", utilization, divider))
+
 	if divider > 0 {
 		utilization = utilization / divider
 	}
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getSystemUtilization): utilization / divider = %f", utilization))
+
 	return utilization
 }
 
@@ -182,6 +221,8 @@ func SetImportanceValues(cpuImportance float64, ramImportance float64) (float64,
 		}
 		usedRam = v.UsedPercent
 	}
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(SetImportanceValues): averageCpuLoad = %f, usedRam = %f", averageCpuLoad, usedRam))
+
 	return averageCpuLoad, usedRam, nil
 }
 
@@ -191,8 +232,11 @@ func getNumberOfLocalEstablishedConnections(ipAddress string, port string) int {
 	}
 	result := runcmd("netstat -nt | findstr " + ipAddress + ":" + port + "  | findstr ESTABLISHED ")
 	count := len(strings.Split(result, "\n"))
+
+	eventLog.Logger.Debugf(fmt.Sprintf("Feedback Agent(getNumberOfLocalEstablishedConnections): count = %d", count))
+
 	if count == 0 {
-		return count
+		return 0
 	}
 	return count - 1
 }

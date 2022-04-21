@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/xml"
 	"io/ioutil"
-	"log"
 	"os"
 	"strconv"
 	"strings"
@@ -65,9 +64,11 @@ type XMLConfig struct {
 	Interval                          ValueAttr
 	Port                              ValueAttr
 	ReturnIdle                        ValueAttr
+	LogLevel                          ValueAttr
 }
 
 func readConfig() {
+	eventLog.Logger.Infoln("Feedback Agent: Reading Config")
 	xmlFile, err := os.Open(CONFIG_FILE)
 	if err != nil {
 		panic(err)
@@ -85,12 +86,11 @@ func readConfig() {
 }
 
 func InitConfig() {
-	f, err := os.OpenFile(LOG_FILE, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
-	if err != nil {
-		log.Fatalf("error opening file: %v", err)
-	}
-	log.SetOutput(f)
+	setupLogging()
+
 	readConfig()
+
+	eventLog.SetLogLevel(GlobalConfig.LogLevel.ToString())
 
 	intervalTicker := time.NewTicker(time.Second * time.Duration(GlobalConfig.Interval.ToInt()))
 	go func() {

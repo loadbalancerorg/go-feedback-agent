@@ -2,10 +2,10 @@ package main
 
 import (
 	"github.com/kardianos/service"
-	"log"
+	log "github.com/sirupsen/logrus"
 )
 
-var logger service.Logger
+var eventLog Logging
 
 type program struct{}
 
@@ -13,6 +13,7 @@ func (p *program) Start(s service.Service) error {
 	go p.run()
 	return nil
 }
+
 func (p *program) run() {
 	// Do work here
 	InitConfig()
@@ -21,7 +22,7 @@ func (p *program) run() {
 	for {
 		conn, err := srv.server.Accept()
 		if err != nil {
-			log.Println(err)
+			eventLog.Logger.Error(err)
 		}
 		go handleClient(conn)
 	}
@@ -42,12 +43,8 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
-	logger, err = s.Logger(nil)
-	if err != nil {
-		log.Fatal(err)
-	}
 	err = s.Run()
 	if err != nil {
-		logger.Error(err)
+		eventLog.Logger.Error(err)
 	}
 }
