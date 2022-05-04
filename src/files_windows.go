@@ -7,10 +7,11 @@ import (
 	"github.com/Freman/eventloghook"
 	log "github.com/sirupsen/logrus"
 	"golang.org/x/sys/windows/svc/eventlog"
-	"io"
+	"os"
 )
 
 const CONFIG_FILE = "C:/ProgramData/LoadBalancer.org/LoadBalancer/config.xml"
+const LOG_FILE = "C:/ProgramData/LoadBalancer.org/LoadBalancer/lbfbalogfile"
 
 // NewLogger Returns a new distributes logging object
 func NewLogger() (Logging, error) {
@@ -18,7 +19,19 @@ func NewLogger() (Logging, error) {
 		log.New(),
 	}
 	// Setup event log
-	eventLog, err := eventlog.Open("Feedback Agent")
+	const name = "Feedback-Agent"
+	const supports = eventlog.Error | eventlog.Warning | eventlog.Info
+	err := eventlog.InstallAsEventCreate(name, supports)
+	if err != nil {
+		return Logging{}, err
+	}
+	defer func() {
+		err = eventlog.Remove(name)
+		if err != nil {
+			return
+		}
+	}()
+	eventLog, err := eventlog.Open(name)
 	if err != nil {
 		return Logging{}, err
 	}
@@ -27,7 +40,13 @@ func NewLogger() (Logging, error) {
 	// Attach our event log hook
 	logging.Logger.Hooks.Add(hook)
 
-	logging.Logger.SetOutput(io.Discard)
+	f, err := os.OpenFile(LOG_FILE, os.O_RDWR|os.O_CREATE|os.O_APPEND, 0666)
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+
+	logging.Logger.SetOutput(f)
+	//logging.Logger.SetOutput(io.Discard)
 
 	// Return with our logger
 	return logging, nil

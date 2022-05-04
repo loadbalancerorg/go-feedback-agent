@@ -89,13 +89,13 @@ func CalculateNormalState() (float64, error) {
 	if (averageCpuLoad > cpuThresholdValue && cpuThresholdValue > 0) ||
 		(usedRam > ramThresholdValue && ramThresholdValue > 0) {
 		eventLog.Logger.Debugf("Feedback Agent: important override")
-		return 0, nil
+		return 100, nil
 	}
 
 	utilization, err := CalculateUtilization(averageCpuLoad, cpuImportance, usedRam, ramImportance)
 	if err != nil {
 		eventLog.Logger.Debugf("Feedback Agent: Error Calculate Utilization")
-		return 0, err
+		return 100, err
 	}
 
 	return utilization, nil
