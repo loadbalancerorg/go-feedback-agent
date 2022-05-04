@@ -11,7 +11,7 @@ type Logging struct {
 func setupLogging() {
 	newLogger, err := NewLogger()
 	if err != nil {
-		panic("unable to create logger")
+		panic(err)
 	}
 	eventLog = newLogger
 }
