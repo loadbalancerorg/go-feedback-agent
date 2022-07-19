@@ -1,0 +1,88 @@
+<?xml version="1.0"?>
+<Wix xmlns="http://schemas.microsoft.com/wix/2006/wi"
+     xmlns:util="http://schemas.microsoft.com/wix/UtilExtension">
+<Module Id="FeedbackAgentServiceModule"
+        Language="1033"
+        Version="4.6.0.0">
+
+  <Package Id="{c2a0b250-042e-11ed-9b58-6bd56780e769}"
+           Description="The Loadbalancer.org Feedback Agent Service Installer"
+           Comments="The Loadbalancer.org Feedback Agent Service Installer"
+           Manufacturer="Loadbalancer.org"
+           Keywords="Loadbalancer.org Loadbalancer Feedback Agent Service"
+           InstallerVersion="100"
+           Languages="1033" />
+ 
+  <Directory Id="TARGETDIR"
+             Name="SourceDir">
+
+    <Directory Id="BinDir"
+               Name="Feedback Agent Service">
+
+      <Component Id="RemoveBinDir"
+                 Guid="{b6e83a42-069e-11ed-8204-93de7464fcd0}">
+        <RemoveFolder Id="RemoveBinDirAction"
+                      On="uninstall" />
+      </Component>
+
+      <Component Id="LICENSE"
+                 Guid="{baf30874-069e-11ed-8d77-3f22d69e2dbf}">
+        <File KeyPath="yes"
+              Source="LICENSE" />
+      </Component>
+
+      <Component Id="LBCPUMon.exe"
+                 Guid="{bd132288-069e-11ed-a370-93c883b3d245}">
+        <File KeyPath="yes"
+              Source="bin/windows64/LBCPUMon.exe" />
+        <ServiceInstall Description="LoadBalancer.org CPU Monitor Service"
+                        DisplayName="LoadBalancer.org CPU Monitor"
+                        ErrorControl="normal"
+                        Name="LBCPUMon"
+                        Start="auto"
+                        Type="ownProcess"
+                        Vital="yes">
+          <util:ServiceConfig FirstFailureActionType="restart"
+                              SecondFailureActionType="restart"
+                              ThirdFailureActionType="restart"
+                              RestartServiceDelayInSeconds="60" />
+        </ServiceInstall>
+        <ServiceControl Id="LBCPUMonStartStop"
+                        Name="LBCPUMon"
+                        Remove="uninstall"
+                        Start="install" />
+      </Component>
+
+    </Directory>
+
+    <Directory Id="CommonAppDataFolder">
+      <Directory Id="AppDataDir"
+                 Name="Loadbalancer.org">
+        <Directory Id="ConfDir"
+                   Name="Loadbalancer">
+
+          <Component Id="RemoveConfDir"
+                     Guid="{ef087630-069e-11ed-b00f-8fd8689c8aee}">
+            <RemoveFolder Id="RemoveConfDirAction"
+                          On="uninstall" />
+          </Component>
+
+          <Component Id="config.xml"
+                     Guid="{f1086206-069e-11ed-9436-ebdb283ec86e}">
+            <File KeyPath="yes"
+                  Source="config.xml" />
+          </Component>
+
+        </Directory>
+      </Directory>
+
+      <Component Id="RemoveAppDataDir"
+                 Guid="{f58c5076-069e-11ed-88c9-bba859dc1f93}">
+        <RemoveFolder Id="RemoveAppDataDirAction"
+                      On="uninstall" />
+      </Component>
+    </Directory>
+  </Directory>
+
+</Module>
+</Wix>
